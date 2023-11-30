@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { IoSend } from "react-icons/io5";
 import { Socket, io } from "socket.io-client";
 import { create } from "zustand";
+import { useChatPage } from "./ChatList";
 
 type Data = {
   data: string
@@ -34,7 +35,8 @@ export default function Chat({ name }: { name: string }) {
   const [socket, setSocket] = useState<Socket<any>>();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
-  const { setUsers } = useOnline();
+  const { setUsers, users } = useOnline();
+  const { inc, current, setCurrent } = useChatPage();
 
   useEffect(() => {
     const newSocket = io('http://localhost:3000');
@@ -58,29 +60,55 @@ export default function Chat({ name }: { name: string }) {
   }, [socket, setUsers]);
 
   useEffect(() => {
-    socket?.on('message', (message: Message): void => {
-      setMessages((prevState) => {
-        return [...prevState, message];
-      })
-    });
-  }, [socket]);
+    if (current === "#-CHAT-GERAL") {
+      socket?.on('message', (message: Message): void => {
+        setMessages((prevState) => {
+          return [...prevState, message];
+        })
+      });
+    } else {
+      socket?.on('privateMessage', (message: Message): void => {
+        setMessages((prevState) => {
+          return [...prevState, message];
+        })
+      });
+    }
+  }, [socket, current]);
 
   const handleMessage = () => {
     if (inputValue !== '') {
-      socket?.emit('message', { data: inputValue });
-      setInputValue('');
+      if (current === "#-CHAT-GERAL") {
+        socket?.emit('message', { data: inputValue });
+      } else {
+        const usersValues = users.map(user => Object.values(user))
+        const usersKeys = users.map(user => Object.keys(user))
+        const userIndex = usersValues.findIndex(user => user.includes(current));
+        const userReceiver = usersKeys.flat()[userIndex];
+        socket?.emit('privateMessage', { data: { to: userReceiver, message: inputValue } });
+      }
     } else {
       return;
     }
   }
 
+  const startPrivateChat = (username: string) => {
+    if (username !== name) {
+      setCurrent(username);
+      inc(username);
+      setMessages([]);
+    }
+  }
+
   return (
     <section className="flex flex-col justify-between items-center gap-6 w-2/4 h-full bg-gray-800">
-      <h1 className="text-3xl font-semibold bg-gray-600 w-full h-auto p-6">Chat Geral</h1>
-      <div className="flex flex-col gap-2 w-full h-full overflow-y-scroll p-2">
+      <h1 className="text-3xl font-semibold bg-gray-600 w-full h-auto p-6">{current}</h1>
+      <div className="flex flex-col gap-2 w-full h-full overflow-y-scroll p-2 scroll-smooth">
         {messages.map((message, index) => (
-          <div key={index}>
-            <p className="text-lg font-semibold">{message.from}: {message.data.data}</p>
+          <div key={index} className={`w-full flex ${message.from === name ? 'text-right justify-end' : 'text-left justify-start'}`}>
+            <p className="bg-gray-700 w-auto p-3 rounded-lg flex flex-col gap-1 ">
+              <span className={`font-semibold text-lg ${message.from !== name && 'cursor-pointer'}`} onClick={() => startPrivateChat(message.from)}>{message.from}</span>
+              <span className="text-sm font-medium">{message.data.data}</span>
+            </p>
           </div>
         ))}
       </div>
