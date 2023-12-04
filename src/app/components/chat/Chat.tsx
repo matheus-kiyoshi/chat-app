@@ -36,7 +36,7 @@ export default function Chat({ name }: { name: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const { setUsers, users } = useOnline();
-  const { inc, current, setCurrent } = useChatPage();
+  const { inc, current, setCurrent, chats } = useChatPage();
 
   useEffect(() => {
     const newSocket = io('http://localhost:3000');
@@ -60,20 +60,25 @@ export default function Chat({ name }: { name: string }) {
   }, [socket, setUsers]);
 
   useEffect(() => {
+    console.log(current)
     if (current === "#-CHAT-GERAL") {
-      socket?.on('message', (message: Message): void => {
+      socket?.on('message-global', (message: Message): void => {
         setMessages((prevState) => {
           return [...prevState, message];
         })
       });
     } else {
-      socket?.on('privateMessage', (message: Message): void => {
+      socket?.on('message-private', (message: Message): void => {
         setMessages((prevState) => {
           return [...prevState, message];
         })
       });
     }
   }, [socket, current]);
+
+  useEffect(() => {
+    setMessages([]);
+  }, [current]);
 
   const handleMessage = () => {
     if (inputValue !== '') {
@@ -92,7 +97,10 @@ export default function Chat({ name }: { name: string }) {
   }
 
   const startPrivateChat = (username: string) => {
-    if (username !== name) {
+    if (chats.includes(username)) {
+      setCurrent(username);
+      setMessages([]);
+    } else if (username !== name) {
       setCurrent(username);
       inc(username);
       setMessages([]);
